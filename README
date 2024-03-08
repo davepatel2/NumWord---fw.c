@@ -1,0 +1,4 @@
+Dave Patel (dpatel88)
+This program takes in multiple files and a number and outputs 
+the top x (stated in argument) words and their count(how many times they appear)
+if no number argument is given then it will print out the top 10 words

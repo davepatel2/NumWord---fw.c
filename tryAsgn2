@@ -1,0 +1,183 @@
+#!/bin/tcsh -f 
+
+if ( `hostname` == "aloha.home" ||  `hostname` == "lagniappe"  ) then
+  set lib=/home/pnico/CalPoly/Class/cpe357/now/Asgn/Handin/lib/asgn2
+  set logprog=echo 
+  set longlines=/home/pnico/bin/longlines.pl
+  set reference=/home/pnico/CalPoly/Class/cpe357/now/Asgn/asgn2/Soln/fw
+  set bindir=/home/pnico/bin
+else
+  set lib=/home/pn-cs357/lib/asgn2/
+  set logprog=/home/pn-cs357/bin/logit.asgn2
+  set longlines=/home/pnico/bin/longlines.pl
+  set reference=/home/pn-cs357/demos/fw
+  set bindir=~pnico/bin
+endif
+
+# add bindir to the head of the path
+set path = ( $bindir $path )
+
+set testdir=$lib/Tests
+set exitstatus = 0
+
+
+if ( $exitstatus == 0 ) then
+  echo ""
+  echo "------------------------"
+  echo "Looking for source files"
+  echo "------------------------"
+  echo ""
+
+  set nonomatch
+  if ( *.[ch] != '*.[ch]' ) then
+    set src = ( *.[ch] )
+    echo "Found: $src"
+  else
+    echo "***** No C source files found. " 
+    echo "***** Are you sure you're in the right directory?"
+    echo ""
+    set exitstatus = -1
+  endif
+endif
+
+if ( $exitstatus == 0 ) then
+  echo ""
+  echo "-----------------------"
+  echo "Looking for a Makefile"
+  echo "----------------------"
+  echo ""
+
+  if ( $exitstatus == 0 ) then
+    if ( -f Makefile ) then
+      echo "Found: Makefile"
+    else if ( -f makefile ) then 
+      echo "Found: makefile"
+    else 
+      echo ""
+      echo "***** No Makefile found."
+      echo ""
+      set exitstatus = -2
+    endif
+  endif
+endif
+
+if ( $exitstatus == 0 ) then
+  echo ""
+  echo "--------------------------------"
+  echo "Checking for long lines (no program should have any lines > 80 chars)"
+  echo "--------------------------------"
+  echo ""
+  if ( ! { $longlines $src } ) then
+     set exitstatus=-3
+  else
+     echo "Line length ok."
+  endif
+  echo ""
+endif
+
+if ( $exitstatus == 0 ) then
+  echo ""
+  echo "------------------------------------"
+  echo "Building the application:" \"make fw\"
+  echo "------------------------------------"
+  echo ""
+
+  set cmd = ( make fw )
+  echo "$cmd" 
+  if ( ! { $cmd  } ) then
+    echo ""
+    echo "Unable to compile fw."
+    set exitstatus = -4
+  endif
+endif
+
+if ( $exitstatus == 0 ) then
+  echo ""
+  echo "---------------"
+  echo "checking for fw"
+  echo "---------------"
+  echo ""
+
+  if ( ! -f fw ) then
+    echo "program fw not found"
+    set exitstatus = -5
+  endif
+endif
+
+if ( $exitstatus == 0 ) then
+  echo ""
+  echo "------------------------"
+  echo "Running the application "
+  echo "------------------------"
+  echo ""
+
+  echo ""
+  echo "--------------------------------------------------------"
+  echo "Test Results:"
+  echo "   These are the results of trying your fw against"   
+  echo "mine on a number of different test cases. "
+  echo ""
+  echo "  The output of your version of fw is compared to "
+  echo "the output of ~pn-cs357/demos/fw using diff (1)."
+  echo "If they differ, even in whitespace, the test case is a failure."
+  echo ""
+  echo "  The test commands are located in $testdir/Cmds and the"
+  echo "associated data are in $testdir/Data"
+  echo ""
+  echo "  Note, the first two tests," \"00_usage\" and  \"01_usage\"
+  echo "give bad arguments and expect to see a message of the form"
+  echo \""usage: fw [-n num] [ file1 [ file2 [...] ] ]"\" "The message"
+  echo "doesn't have to be exactly the same, but it's looking for the"
+  echo "word "\"usage\".
+  echo ""
+  echo "  Each command (with one exception) is run with a timeout of "
+  echo "2 minutes, so if your program takes more than 2 minutes, it "
+  echo "will be interrupted. "
+  echo ""
+  echo "  The exception is "\"man1\"" which gets 5 minutes."
+    
+  echo ""
+  echo "Tests"
+  touch DETAILS.$$
+  foreach cmd ( $testdir/Cmds/*.cmd ) 
+     echo -n "        "$cmd:t:r"..."               
+     # run each, disposing of stderr
+     ( $cmd $reference $testdir/Data > reference.output$$ ) >& /dev/null
+     ( $cmd ./fw $testdir/Data       > fw.output$$ ) >&  fw.err.$$
+     diff reference.output$$ fw.output$$  > fw.diffs.$$
+     if ( ! $status ) then 
+         echo "ok."                                
+     else                                                  
+         echo "FAILURE."
+ 	 echo  "====================="  >> DETAILS.$$
+ 	 echo  $cmd:t:r" diffs (< Reference >Submitted)"  >> DETAILS.$$
+ 	 echo  "====================="  >> DETAILS.$$
+	 cat -v fw.diffs.$$ | sed 's/^/  /'  >> DETAILS.$$
+	 if ( ! -z  fw.err.$$ ) then
+ 	     echo  "---------------------"  >> DETAILS.$$
+ 	     echo  "Submitted's stderr"  >> DETAILS.$$
+ 	     echo  "---------------------"  >> DETAILS.$$
+	 endif
+	 cat -v fw.err.$$ | sed 's/^/  /'  >> DETAILS.$$
+         @ exitstatus++;
+     endif
+     rm -f fw.output$$ reference.output$$ fw.diffs.$$ fw.err.$$
+  end
+
+  echo ""
+  echo "--------------------------------------------------------"
+  echo ""
+  if ( ! -z DETAILS.$$ ) cat DETAILS.$$
+  rm -f DETAILS.$$
+endif
+
+if ( ! $exitstatus ) then
+  echo "Passed all tests. (but remember, this test suite is not exhaustive)"
+else
+  echo "FAILED."
+endif
+
+
+$logprog  $exitstatus
+exit $exitstatus;
+
